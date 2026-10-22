@@ -10547,10 +10547,10 @@ border: 1px solid var(--card-border, rgba(0, 0, 0, .1)); border-radius: 999px;
 .eqz-view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .eqz-view[hidden] { display: none; }
 .eqz-view .eqz-scroll { flex: 1; }
-#eqz-view-result { overflow-y: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+#eqz-view-result { overflow-y: auto; scrollbar-width: none; }
 #eqz-view-result::-webkit-scrollbar { display: none; }
 .eqz-scroll {
-min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+min-height: 0; overflow-y: auto;
 padding: 14px 18px 6px; scrollbar-width: none; -ms-overflow-style: none;
 }
 .eqz-scroll::-webkit-scrollbar { display: none; }
@@ -10618,15 +10618,18 @@ border: 1px solid var(--danger-ink, #a32d2d); border-radius: 11px;
 white-space: normal; word-break: break-word;
 }
 .eqz-rs-n { font-weight: 800; color: var(--danger-ink, #a32d2d); margin-right: 6px; }
+.splash.rules-open { overflow-y: auto; }
+.splash.rules-open > #entry-rules-page [hidden] { display: none !important; }
+.splash.rules-open > #entry-rules-page #nrz-prev[disabled] { opacity: .32; }
 .ur-wrap {
-position: absolute; inset: 0; z-index: 30;
+position: fixed; inset: 0; z-index: 30;
 display: flex; align-items: center; justify-content: center;
 padding: 22px; box-sizing: border-box;
 background: rgba(0, 0, 0, .38);
 }
 .ur-card {
 width: 100%; max-width: 330px; max-height: 80%;
-overflow-y: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none;
+overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none;
 padding: 18px 16px; box-sizing: border-box; text-align: left;
 background: var(--card-bg-97, rgba(255, 255, 255, .97));
 border: 1px solid var(--card-border, rgba(0, 0, 0, .1));
@@ -11005,10 +11008,17 @@ font-size: 11.5px; color: var(--muted, #8a8a8a); cursor: pointer; touch-action: 
             <p class="splash-bullet">现在的做法：那段近无声音频默认改走「站内音效」那条通道（设置 → 系统 新增一档「保活不抢其他 App 的声音」，默认开启）。页面照样持续出声、系统照样不冻结本页，但不再向手机声明「本站正在放媒体」——你在别的 App 听歌 / 看视频时不会被本站压低音量，切进切出也不再忽响忽轻。代价说清楚：通知栏那条「Mochi 后台保活」的媒体横幅不再出现，因为那条横幅本身就是那次音频通道的占用。</p>
             <p class="splash-bullet">万一因此收不到后台消息：个别浏览器只认那条媒体横幅给的豁免。把 设置 → 系统 →「保活不抢其他 App 的声音」关掉就回到老路（有横幅、会占用音频通道），当场生效、不用等改版。上传了自定义保活音频（白噪音 / 助眠声）时这一档不参与——那是你要出声放的东西，照旧走媒体通道。想知道此刻走的是哪条：设置 → 查看诊断 →【保活现场】里的「锚=」那一格（媒体元素(占媒体通道) / WebAudio(不占媒体通道)）。</p>
           </div>
+          <!-- #1579（2026-10-22 作者直派「公告新增 10.22 更新」）：与在线权威源 src/pwa/notice.json 同口径（在线整段替换本段；此处为断网/弱网兜底）。
+               插在 #1060 通知章之前＝「通知相关设置放公告最后」的用户直派仍成立（verify-1060/1473 按「末章/末块」锚定，语义不动）；
+               原第 14 章（后台通知相关设置）顺延为第 15 章（#1500 目录统一编号口径，阿拉伯数字顺延） -->
+          <div class="splash-sec-wrap">
+            <p class="splash-sec">14、10.22 更新</p>
+            <p class="splash-bullet">本次没有新增难题问卷，但新增了开屏前的《本站入站须知》和《入站氛围确认（8个题目）》。总之就是一些原则问题，规则从来都不是卡正常使用。</p>
+          </div>
           <!-- #1060（2026-09-23 用户直派「关于后台通知相关设置也放在公告里，放在公告的最后新增一个目录」）：
                与在线权威源 src/pwa/notice.json 的 sections 末条同口径（在线整段替换本段；此处为断网/弱网兜底） -->
           <div class="splash-sec-wrap">
-            <p class="splash-sec">14、关于后台通知相关设置（怎么开、收不到怎么办）</p>
+            <p class="splash-sec">15、关于后台通知相关设置（怎么开、收不到怎么办）</p>
             <p class="splash-bullet"><b>三个开关都在 设置 → 系统</b>：「后台通知」＝页面在后台时 TA 发消息弹系统通知（打开它会自动把「后台保活」一起打开，保活是通知的前提）；「通知逐条弹（关闭去重）」＝默认关闭（连发内容相同或近期弹过的消息只弹一条），<b>打开后联系人每条消息都单独弹</b>（字卡重复率高时会连环弹同句，按需开）；「后台保活」＝让页面在后台继续运行。</p>
             <p class="splash-bullet"><b>怎么确认通了</b>：点「后台通知」行右边的「测试」——当场体检（开关 / 通知权限 / 后台保活与锚点 / 后台服务通道 / 历史冻结与断流取证）并真发一条通知、回读系统通知队列，卡在哪一环直接写在结果里；结果里还有第二段可测「后台阶段」。</p>
             <p class="splash-bullet"><b>收不到①·浏览器权限</b>：地址栏左侧图标 → 权限 → 通知 → 允许；若列表里没有本站、或授权框从不出现（浏览器会把反复弹过授权框的站自动挡掉）→ Chrome ⋮ → 设置 → 网站设置 → 通知 →「添加网站例外」→ 输入本站网址。若你是从桌面图标（已安装应用）打开的，通知权限由应用自己管理、Chrome 网站设置里不显示本站属正常：<b>长按图标卸载后重新「添加到主屏幕」，安装时允许通知即可重置</b>。</p>
@@ -11201,7 +11211,7 @@ font-size: 11.5px; color: var(--muted, #8a8a8a); cursor: pointer; touch-action: 
            （名称+版号 / 部署时间+实时秒 / 版本检测行）收成一行；检测行随 ver-check.js 退役删除。
            data-build-ts / data-version 两属性保留：device.js 诊断、bg-keep 自检、pwa.js 旧包检测
            仍只读属性（诊断版本号走 data-version 兜底，device.js 两处缓存原生支持）。 -->
-      <div class="splash-ver" id="splash-ver" data-build-ts="1792142148876" data-version="v8.67">
+      <div class="splash-ver" id="splash-ver" data-build-ts="1792665747753" data-version="v8.68">
         <span class="sv-app">Mochi 字卡传讯 已完结停更</span>
       </div>
       <!-- v3.5.120：数据（IndexedDB 回填）加载完成前不显示「点击进入」按钮，
@@ -12738,7 +12748,7 @@ font-size: 11.5px; color: var(--muted, #8a8a8a); cursor: pointer; touch-action: 
         <div class="set-row" id="row-changelog">
           <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 12c0-5.5 3.5-10 10-10 3.7 0 7 2 8.8 5M22 12c0 5.5-3.5 10-10 10-3.7 0-7-2-8.8-5"/></svg></div>
           <div class="txt">版本与更新<span class="sub">当前版本 · 一键更新到最新（更新摘要见开屏公告）</span></div>
-          <div class="val" id="about-ver-val">v8.67</div>
+          <div class="val" id="about-ver-val">v8.68</div>
           <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></div>
         </div>
         <!-- #606 开源与致谢：开源/私有部署说明 + 灵感来源与致谢（内容与功能介绍页同源，做成独立入口） -->
@@ -12830,7 +12840,7 @@ font-size: 11.5px; color: var(--muted, #8a8a8a); cursor: pointer; touch-action: 
         </div>
       </div>
       </div><!-- /them-sec about -->
-      <div class="ver">Mochi 字卡传讯 v8.67</div>
+      <div class="ver">Mochi 字卡传讯 v8.68</div>
       <div class="ver-credit">原版小红书@言序（1842523578）</div>
       <!-- v3.27.x：设置页底部防骗声明 -->
       <div class="set-alert">
@@ -13229,7 +13239,7 @@ font-size: 11.5px; color: var(--muted, #8a8a8a); cursor: pointer; touch-action: 
             <div class="lic-hero-top">
               <div class="lic-title">Mochi 字卡传讯</div>
               <span class="lic-badge">原版</span>
-              <span class="lic-ver">v8.67</span>
+              <span class="lic-ver">v8.68</span>
             </div>
             <div class="lic-p">原创极简风情侣字卡传讯，不是小手机：黑白灰简约设计，数据全部保存在本地、无需联网；所有内容均为代码触发、按概率运行，联系方可主动发送聊天消息。代码从零编写并完全开源——本作即原版。</div>
             <!-- v3.26.x #648：原版口径澄清——唯一原版使用网站＋其他版本均为开放二传二改产生的二传/二改版 -->
@@ -18087,7 +18097,7 @@ font-size: 11.5px; color: var(--muted, #8a8a8a); cursor: pointer; touch-action: 
   // v3.5.123：readonly 起手（防 Chrome 密码弹条破坏表单签名）——这里立即解除，
   // 早于所有功能模块，任何设备都不会出现输入框不可用的情况
   (function () { var _ci = document.getElementById('chat-input'); if (_ci) _ci.readOnly = false; })();
-window.__jsErrors = window.__jsErrors || []; window.__mochiLoaded = window.__mochiLoaded || []; window.__mochiErrLoaded = window.__mochiErrLoaded || []; window.__mochiBootAt = Date.now(); window.__mochiJsFiles = ["device.js","idb.js","contacts.js","applock.js","card-lock.js","dcp-master.js","media-pool.js","storage-slim.js","perf-check.js","energy-check.js","flash-check.js","img-compress.js","img-ingest.js","clock.js","entry-quiz.js","tabs.js","desktop-slider.js","quote-cards.js","personalize.js","chat.js","group-chat.js","chatcard.js","chat-settings.js","reply-settings.js","fav-settings.js","default-cards-data.js","dict-ext-data.js","default-cards.js","quote-spell.js","dream-free.js","mood-followup-data.js","mood-reply-cards.js","ta-mood-data.js","ta-mood.js","fav-reason-data.js","fav-reason.js","music-player.js","calendar.js","divination.js","avatar-lib.js","ta-ask.js","ck-question.js","incoming-requests.js","ta-invite.js","bg-keep.js","records.js","call.js","mail.js","feed.js","loc-lib.js","p2-features.js","gift-shop.js","memo-app.js","memo-arc.js","my-arc.js","period.js","accounting.js","garden.js","room.js","drift-bottle.js","decision.js","group-decision.js","pong.js","snake-game.js","breakout.js","connect-four.js","coop-mine.js","fishing.js","memory-game.js","gomoku.js","linkup.js","match3.js","auction.js","arcade.js","mood-diary.js","sfx.js","fullscreen.js","data-backup.js","feature-data.js","pwa.js","update-remind.js","cjian.js","feature-hub.js","settings-help.js","onboarding.js","page-coach.js","card-audit.js","storage-guide.js","mobile-adapt.js"]; window.__mochiExtFiles = ["idb.js","contacts.js","applock.js","card-lock.js","dcp-master.js","media-pool.js","storage-slim.js","perf-check.js","energy-check.js","flash-check.js","img-compress.js","img-ingest.js","clock.js","entry-quiz.js","tabs.js","desktop-slider.js","quote-cards.js","personalize.js","chat.js","group-chat.js","chatcard.js","chat-settings.js","reply-settings.js","fav-settings.js","default-cards-data.js","dict-ext-data.js","default-cards.js","quote-spell.js","dream-free.js","mood-followup-data.js","mood-reply-cards.js","ta-mood-data.js","ta-mood.js","fav-reason-data.js","fav-reason.js","music-player.js","calendar.js","divination.js","avatar-lib.js","ta-ask.js","ck-question.js","incoming-requests.js","ta-invite.js","bg-keep.js","records.js","call.js","mail.js","feed.js","loc-lib.js","p2-features.js","gift-shop.js","memo-app.js","memo-arc.js","my-arc.js","period.js","accounting.js","garden.js","room.js","drift-bottle.js","decision.js","group-decision.js","pong.js","snake-game.js","breakout.js","connect-four.js","coop-mine.js","fishing.js","memory-game.js","gomoku.js","linkup.js","match3.js","auction.js","arcade.js","mood-diary.js","sfx.js","fullscreen.js","data-backup.js","feature-data.js","update-remind.js","cjian.js","feature-hub.js","settings-help.js","onboarding.js","page-coach.js","card-audit.js","storage-guide.js","mobile-adapt.js"];
+window.__jsErrors = window.__jsErrors || []; window.__mochiLoaded = window.__mochiLoaded || []; window.__mochiErrLoaded = window.__mochiErrLoaded || []; window.__mochiBootAt = Date.now(); window.__mochiJsFiles = ["device.js","idb.js","contacts.js","applock.js","card-lock.js","dcp-master.js","media-pool.js","storage-slim.js","perf-check.js","energy-check.js","flash-check.js","img-compress.js","img-ingest.js","clock.js","entry-quiz.js","entry-rules.js","tabs.js","desktop-slider.js","quote-cards.js","personalize.js","chat.js","group-chat.js","chatcard.js","chat-settings.js","reply-settings.js","fav-settings.js","default-cards-data.js","dict-ext-data.js","default-cards.js","quote-spell.js","dream-free.js","mood-followup-data.js","mood-reply-cards.js","ta-mood-data.js","ta-mood.js","fav-reason-data.js","fav-reason.js","music-player.js","calendar.js","divination.js","avatar-lib.js","ta-ask.js","ck-question.js","incoming-requests.js","ta-invite.js","bg-keep.js","records.js","call.js","mail.js","feed.js","loc-lib.js","p2-features.js","gift-shop.js","memo-app.js","memo-arc.js","my-arc.js","period.js","accounting.js","garden.js","room.js","drift-bottle.js","decision.js","group-decision.js","pong.js","snake-game.js","breakout.js","connect-four.js","coop-mine.js","fishing.js","memory-game.js","gomoku.js","linkup.js","match3.js","auction.js","arcade.js","mood-diary.js","sfx.js","fullscreen.js","data-backup.js","feature-data.js","pwa.js","update-remind.js","cjian.js","feature-hub.js","settings-help.js","onboarding.js","page-coach.js","card-audit.js","storage-guide.js","mobile-adapt.js"]; window.__mochiExtFiles = ["idb.js","contacts.js","applock.js","card-lock.js","dcp-master.js","media-pool.js","storage-slim.js","perf-check.js","energy-check.js","flash-check.js","img-compress.js","img-ingest.js","clock.js","entry-quiz.js","entry-rules.js","tabs.js","desktop-slider.js","quote-cards.js","personalize.js","chat.js","group-chat.js","chatcard.js","chat-settings.js","reply-settings.js","fav-settings.js","default-cards-data.js","dict-ext-data.js","default-cards.js","quote-spell.js","dream-free.js","mood-followup-data.js","mood-reply-cards.js","ta-mood-data.js","ta-mood.js","fav-reason-data.js","fav-reason.js","music-player.js","calendar.js","divination.js","avatar-lib.js","ta-ask.js","ck-question.js","incoming-requests.js","ta-invite.js","bg-keep.js","records.js","call.js","mail.js","feed.js","loc-lib.js","p2-features.js","gift-shop.js","memo-app.js","memo-arc.js","my-arc.js","period.js","accounting.js","garden.js","room.js","drift-bottle.js","decision.js","group-decision.js","pong.js","snake-game.js","breakout.js","connect-four.js","coop-mine.js","fishing.js","memory-game.js","gomoku.js","linkup.js","match3.js","auction.js","arcade.js","mood-diary.js","sfx.js","fullscreen.js","data-backup.js","feature-data.js","update-remind.js","cjian.js","feature-hub.js","settings-help.js","onboarding.js","page-coach.js","card-audit.js","storage-guide.js","mobile-adapt.js"];
 (function () { try {
 (function () {
 try { window.__jsErrors = window.__jsErrors || []; } catch (e0) {}
@@ -22822,6 +22832,7 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <script defer src="js/img-ingest.js" onerror="window.__mochiExtFail=(window.__mochiExtFail||[]).concat('img-ingest.js')"></script>
 <script defer src="js/clock.js" onerror="window.__mochiExtFail=(window.__mochiExtFail||[]).concat('clock.js')"></script>
 <script defer src="js/entry-quiz.js" onerror="window.__mochiExtFail=(window.__mochiExtFail||[]).concat('entry-quiz.js')"></script>
+<script defer src="js/entry-rules.js" onerror="window.__mochiExtFail=(window.__mochiExtFail||[]).concat('entry-rules.js')"></script>
 <script defer src="js/tabs.js" onerror="window.__mochiExtFail=(window.__mochiExtFail||[]).concat('tabs.js')"></script>
 <script defer src="js/desktop-slider.js" onerror="window.__mochiExtFail=(window.__mochiExtFail||[]).concat('desktop-slider.js')"></script>
 <script defer src="js/quote-cards.js" onerror="window.__mochiExtFail=(window.__mochiExtFail||[]).concat('quote-cards.js')"></script>
@@ -22916,4 +22927,4 @@ window.__mochiBootRetry = function () { try { location.reload(); } catch (e) {} 
 <!-- __MOCHI_EOF__ -->
 </body>
 </html>
-<!-- __MOCHI_EOF__ mvar5w5o -->
+<!-- __MOCHI_EOF__ mvjewfmx -->

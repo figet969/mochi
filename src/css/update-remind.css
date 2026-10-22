@@ -1,15 +1,20 @@
 /* ===== 线上有新版 · 强制刷新提醒弹窗（update-remind.js）=====
    #splash 内自绘遮罩卡（开屏期间 openModal 不可见，见 js 注释）；
    配色全部走 base.css 变量 → 深浅主题自动适配（同 entry-quiz.css 口径）。 */
+/* #1582：改 position:fixed —— 须知页状态下 .splash 自己会滚动（整页单层滚动），
+   absolute;inset:0 的遮罩会跟着内容一起滚走＝弹窗跑到可视区外、用户看着像「没弹」。
+   .splash 无 transform/filter 祖先，fixed 直接锚定视口，任何滚动位置都盖满屏。 */
 .ur-wrap {
-  position: absolute; inset: 0; z-index: 30;
+  position: fixed; inset: 0; z-index: 30;
   display: flex; align-items: center; justify-content: center;
   padding: 22px; box-sizing: border-box;
   background: rgba(0, 0, 0, .38);
 }
 .ur-card {
   width: 100%; max-width: 330px; max-height: 80%;
-  overflow-y: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none;
+  /* #1582：删 legacy 动量旗标（同 #707/#1411/#1581 清理口径）——部分内核上它会让卡片内容
+     滚不动/被裁剪＝正文看不全、刷新按钮点不到；现代内核 overflow:auto 默认即动量。 */
+  overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none;
   padding: 18px 16px; box-sizing: border-box; text-align: left;
   background: var(--card-bg-97, rgba(255, 255, 255, .97));
   border: 1px solid var(--card-border, rgba(0, 0, 0, .1));

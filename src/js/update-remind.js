@@ -13,9 +13,10 @@
   'use strict';
   const IS_AUTOMATION = (typeof navigator !== 'undefined') &&
     (navigator.webdriver === true || /Headless/i.test(String(navigator.userAgent)));
-  const TITLE = '强制刷新更新至2026.10.16';
-  const BODY = '本来9.30已永久停更，不该再更改任何内容，但mochi 的密码早已被大范围泄露（有人私传、二传链接时把密码一起传、确认成年就直接传密码），违规使用、不遵守使用规则的情况越来越多。密码暂不修改，但新增入站问卷：答对全部题目才能恢复使用。题目都是公告与使用规则里的内容，答对一次本机永久放行（问卷更新后需重新作答）。提示：点击刷新后要重新下载全部内容（约 5.6MB），网络慢时可能需要一两分钟，请保持页面打开等它自动完成；如果刷新后进来还是旧版，说明刚才没下载完，再点一次刷新（或多试几次）就好。';
-  const BTN = '点击刷新更新至2026.10.16问卷版本';
+  // #1579（2026-10-22 作者指出日期停在 10.16）：随本次部署升到 2026.10.22（旧缓存用户看到的「刷新到哪版」要跟当前部署走）
+  const TITLE = '强制刷新更新至2026.10.22';
+  const BODY = '本来9.30已永久停更，不该再更改任何内容，但mochi 的密码早已被大范围泄露（有人私传、二传链接时把密码一起传、确认成年就直接传密码），违规使用、不遵守使用规则的情况越来越多。密码暂不修改，但新增入站问卷：答对全部题目才能恢复使用。题目都是公告与使用规则里的内容，答对一次本机永久放行（问卷更新后需重新作答）。本次更新还修复了部分手机在入站须知页看不到第 8 题的问题——如果你手机上确实看不全，请务必先刷新再答题。提示：点击刷新后要重新下载全部内容（约 5.6MB），网络慢时可能需要一两分钟，请保持页面打开等它自动完成；如果刷新后进来还是旧版，说明刚才没下载完，再点一次刷新（或多试几次）就好。';
+  const BTN = '点击刷新更新至2026.10.22问卷版本';
   let done = false; // 本会话已弹过（含被「暂不刷新」关掉）＝不再重复弹
 
   function esc(s) {
@@ -93,4 +94,58 @@
   };
 
   window.__updateRemindReady = true;
+
+  /* ===== #1582（2026-10-22 作者直派「把这个弹窗固定，本次必定更新刷新」）=====
+     上面那条通道依赖「线上 version.json 的 ts > 本页 data-build-ts」才弹，判定不成立的情形很多——
+     version.json 请求被弱网/缓存吞掉、用户上次点了「暂不刷新」、PWA 快捷方式几天不重新导航等；
+     任何一种成立，用户就永远停在旧包上，表现就是「修了但还有人看不到第 8 题」。
+     本段是【按版本一次性强提醒】，判据只读本页自己的构建号（data-build-ts，构建时注入、零网络依赖）：
+       本页构建时间 ≤ FORCE_FLOOR_TS（＝上一版含缺陷的包）→ 必弹，不看版本号也不看网络；
+       已是最新包（ts 更大）→ 不弹，不制造无谓打扰。
+     弹过即记标记 xy-home-v2:update-remind-force（已进 contacts.js EXCLUDE），本版不再重复；
+     下次要再强提醒只需改 FORCE_TAG（并同步 FORCE_FLOOR_TS）。 */
+  const FORCE_TAG = '2026-10-22e';
+  const FORCE_FLOOR_TS = 1792664135762; // 2026-10-22 18:15 那一版（含 #1581/#1582 两版未覆盖全机型的包）的构建 ts：此值及更早＝旧包，一律必弹
+  const FORCE_KEY = 'update-remind-force';
+  const G = 'xy-home-v2';
+  function fGet(k) {
+    try { const v = window.xyStore ? window.xyStore(G).get(k) : null; if (v !== null && v !== undefined) return v; } catch (e) {}
+    try { return localStorage.getItem(G + ':' + k); } catch (e2) { return null; }
+  }
+  function fSet(k, v) {
+    try { if (window.xyStore) window.xyStore(G).set(k, v); else localStorage.setItem(G + ':' + k, v); }
+    catch (e) { try { localStorage.setItem(G + ':' + k, v); } catch (e2) {} }
+  }
+  (function forceOnce() {
+    if (IS_AUTOMATION) return;
+    if (!/^https?:$/.test(location.protocol)) return;
+    // 判据：本页构建号（零网络）。拿不到构建号＝老到没有该属性，同样按旧包处理
+    let pageTs = 0;
+    try {
+      const sv = document.getElementById('splash-ver');
+      pageTs = sv ? Number(sv.getAttribute('data-build-ts')) || 0 : 0;
+    } catch (e0) { pageTs = 0; }
+    if (pageTs > FORCE_FLOOR_TS) return; // 已是最新包 → 不弹
+    try { if (fGet(FORCE_KEY) === FORCE_TAG) return; } catch (e) { return; }
+    let n = 0; // 最多等 ~15s（开屏/本文件就绪）；弹成功即记标记收手
+    const t = setInterval(function () {
+      const sp = document.getElementById('splash');
+      const fn = window.mochiUpdateRemindShow;
+      // 只在开屏期弹：已进应用（开屏已 hide）就不打扰会话
+      if (sp && !sp.classList.contains('hide')) {
+        // 已在屏上（版本通道先弹了）＝同样算本次已提醒，补记标记后收手，避免下次再弹一遍
+        if (document.getElementById('update-remind-wrap')) {
+          fSet(FORCE_KEY, FORCE_TAG);
+          clearInterval(t);
+          return;
+        }
+        if (typeof fn === 'function' && fn()) {
+          fSet(FORCE_KEY, FORCE_TAG);
+          clearInterval(t);
+          return;
+        }
+      }
+      if (++n > 50) clearInterval(t);
+    }, 300);
+  })();
 })();

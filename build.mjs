@@ -113,7 +113,7 @@ function minifyCss(code) {
 
 // ===== 按顺序拼接样式 / 脚本（顺序即生效顺序） =====
 const cssFiles = ['base.css', 'home.css', 'chat-main.css', 'chat-pages.css', 'market.css', 'group-chat.css', 'setting.css', 'tabbar.css', 'dark.css', 'garden.css', 'memo.css', 'memo-arc.css', 'room.css', 'drift-bottle.css', 'applock.css', 'feature-data.css', 'display-tune.css', 'entry-quiz.css', 'update-remind.css'];
-const jsFiles = ['device.js', 'idb.js', 'contacts.js', 'applock.js', 'card-lock.js', 'dcp-master.js', 'media-pool.js','storage-slim.js', 'perf-check.js', 'energy-check.js', 'flash-check.js', 'img-compress.js', 'img-ingest.js', 'clock.js', 'entry-quiz.js', 'tabs.js', 'desktop-slider.js', 'quote-cards.js', 'personalize.js', 'chat.js', 'group-chat.js', 'chatcard.js', 'chat-settings.js', 'reply-settings.js', 'fav-settings.js', 'default-cards-data.js', 'dict-ext-data.js', 'default-cards.js', 'quote-spell.js', 'dream-free.js', 'mood-followup-data.js', 'mood-reply-cards.js', 'ta-mood-data.js', 'ta-mood.js', 'fav-reason-data.js', 'fav-reason.js', 'music-player.js', 'calendar.js', 'divination.js', 'avatar-lib.js', 'ta-ask.js', 'ck-question.js', 'incoming-requests.js', 'ta-invite.js', 'bg-keep.js', 'records.js', 'call.js', 'mail.js', 'feed.js', 'loc-lib.js', 'p2-features.js', 'gift-shop.js', 'memo-app.js', 'memo-arc.js', 'my-arc.js', 'period.js', 'accounting.js', 'garden.js', 'room.js', 'drift-bottle.js', 'decision.js', 'group-decision.js', 'pong.js', 'snake-game.js', 'breakout.js', 'connect-four.js', 'coop-mine.js', 'fishing.js', 'memory-game.js', 'gomoku.js', 'linkup.js', 'match3.js', 'auction.js', 'arcade.js', 'mood-diary.js', 'sfx.js', 'fullscreen.js', 'data-backup.js', 'feature-data.js', 'pwa.js', 'update-remind.js', 'cjian.js', 'feature-hub.js', 'settings-help.js', 'onboarding.js', 'page-coach.js', 'card-audit.js', 'storage-guide.js', 'mobile-adapt.js'];
+const jsFiles = ['device.js', 'idb.js', 'contacts.js', 'applock.js', 'card-lock.js', 'dcp-master.js', 'media-pool.js','storage-slim.js', 'perf-check.js', 'energy-check.js', 'flash-check.js', 'img-compress.js', 'img-ingest.js', 'clock.js', 'entry-quiz.js', 'entry-rules.js', 'tabs.js', 'desktop-slider.js', 'quote-cards.js', 'personalize.js', 'chat.js', 'group-chat.js', 'chatcard.js', 'chat-settings.js', 'reply-settings.js', 'fav-settings.js', 'default-cards-data.js', 'dict-ext-data.js', 'default-cards.js', 'quote-spell.js', 'dream-free.js', 'mood-followup-data.js', 'mood-reply-cards.js', 'ta-mood-data.js', 'ta-mood.js', 'fav-reason-data.js', 'fav-reason.js', 'music-player.js', 'calendar.js', 'divination.js', 'avatar-lib.js', 'ta-ask.js', 'ck-question.js', 'incoming-requests.js', 'ta-invite.js', 'bg-keep.js', 'records.js', 'call.js', 'mail.js', 'feed.js', 'loc-lib.js', 'p2-features.js', 'gift-shop.js', 'memo-app.js', 'memo-arc.js', 'my-arc.js', 'period.js', 'accounting.js', 'garden.js', 'room.js', 'drift-bottle.js', 'decision.js', 'group-decision.js', 'pong.js', 'snake-game.js', 'breakout.js', 'connect-four.js', 'coop-mine.js', 'fishing.js', 'memory-game.js', 'gomoku.js', 'linkup.js', 'match3.js', 'auction.js', 'arcade.js', 'mood-diary.js', 'sfx.js', 'fullscreen.js', 'data-backup.js', 'feature-data.js', 'pwa.js', 'update-remind.js', 'cjian.js', 'feature-hub.js', 'settings-help.js', 'onboarding.js', 'page-coach.js', 'card-audit.js', 'storage-guide.js', 'mobile-adapt.js'];
 
 // ===== PERF-PLAN 阶段 1：JS 外置化（2026-09-18）=====
 // 首开「3.8MB 内联 JS 主线程整段解析执行」是 iOS/中低端安卓卡顿的结构性大头
@@ -982,6 +982,25 @@ const FIX_SENTINELS = [
   { name: '开屏问答门（applock.js 问答题门禁，防并行会话删除——隐私门即失效）', file: 'js/applock.js', needle: 'applock-qaskip' },
   { name: '开屏问答门设置行（template.html #applock-qa-en，防并行会话把入口改丢）', file: 'template.html', needle: 'id="applock-qa-en"' },
   { name: '#1550 入站问卷闸门本体（开屏点击进入后跳转的整页问卷，答对全部题目才放行；删掉即泄露密码者可直接进入）', file: 'js/entry-quiz.js', needle: 'window.mochiEntryQuizGate = function' },
+  { name: '#1578 入站须知问卷本体（开屏公告前的一次性入站确认层，删掉＝须知与氛围确认被整体跳过）', file: 'js/entry-rules.js', needle: 'window.__entryRulesReady = true' },
+  { name: '#1578 入站须知放行根键进 migrateLegacy 排除清单（rules-notice-pass 全局根键不被迁进 default 并删根键，否则每次刷新都要重答）', file: 'js/contacts.js', needle: "'rules-notice-pass'," },
+  { name: '#1578 入站须知正文含三条基本规则（署名/禁拉踩/禁泄露答案密码，文案被删＝规则声明丢失）', file: 'js/entry-rules.js', needle: '禁止泄露问卷答案和开屏密码' },
+  { name: '#1578 入站须知最终确认按钮（删掉＝无法完成接受动作、须知页死锁）', file: 'js/entry-rules.js', needle: '我已阅读并接受以上规则，继续。' },
+  { name: '#1579 须知第二段按作者直派改口「可能很多人觉得」（回退＝改口丢失）', file: 'js/entry-rules.js', needle: '可能很多人觉得免费就不该有规矩' },
+  { name: '#1579 公告新增「14、10.22 更新」章（在线权威源 notice.json，两源必须同改）', file: 'pwa/notice.json', needle: '"h": "14、10.22 更新"' },
+  { name: '#1579 公告「10.22 更新」章离线兜底同口径（template.html 静态块，只改在线源＝断网用户看不到）', file: 'template.html', needle: '<p class="splash-sec">14、10.22 更新</p>' },
+  { name: '#1579 公告「10.22 更新」章正文（删掉＝更新说明丢失）', file: 'pwa/notice.json', needle: '本次没有新增难题问卷' },
+  { name: '#1579 原通知章顺延重编号 14→15·在线源（只改一处＝两份目录编号分叉）', file: 'pwa/notice.json', needle: '"h": "15、关于后台通知相关设置' },
+  { name: '#1579 原通知章顺延重编号 14→15·离线兜底（同上）', file: 'template.html', needle: '<p class="splash-sec">15、关于后台通知相关设置' },
+  { name: '#1581 结果视图滚动规则已删 legacy 动量旗标（#707/#1411 同族：部分内核惯性滚动内容裁剪＝「第 7 题以后刷不出来」；旗标回流＝插回本段中间、本形状锚即红）', file: 'css/entry-quiz.css', needle: '#eqz-view-result { overflow-y: auto; scrollbar-width: none; }' },
+  { name: '#1581 答题滚动区 .eqz-scroll 已删 legacy 动量旗标（同上；旗标回流＝overflow 与 padding 之间插旗、本形状即变）', file: 'css/entry-quiz.css', needle: 'min-height: 0; overflow-y: auto;\npadding: 14px 18px 6px;' },
+  { name: '#1581 .eqz-page 页面级滚动兜底在位（多层 flex 嵌套 min-height 不传播的内核上由本层接管滚动＝内容可达；删掉＝兜底失效）', file: 'css/entry-quiz.css', needle: '.splash.rules-open { overflow-y: auto; }' },
+  { name: '#1583 须知页一题一屏·分步状态在位（任何时刻只有一屏内容＝不依赖滚动也能走完 8 题；删掉＝退回长页，部分机型又到不了第 8 题）', file: 'js/entry-rules.js', needle: 'const LAST_STEP = total + 1;' },
+  { name: '#1583 靠 hidden 切屏必须配救援（个别内核/[hidden] 被 display 覆盖＝8 题一起显示、底栏被挤走）', file: 'css/entry-quiz.css', needle: '.splash.rules-open > #entry-rules-page [hidden] { display: none !important; }' },
+  { name: '#1582 须知页滚动作用域只挂 rules-open（entry-rules.js 打开时加、cleanup 时摘；删掉＝整页滚动不生效）', file: 'js/entry-rules.js', needle: "sp.classList.add('rules-open');" },
+  { name: '#1582 强制刷新弹窗·本版一次性强提醒（作者直派「必定更新刷新」；删掉＝只能靠 version.ts 比对，旧缓存用户可能永远收不到提醒）', file: 'js/update-remind.js', needle: 'function forceOnce()' },
+  { name: '#1583 须知页自检入口（作者「别再猜」：页头一点即出本机真实几何数据可复制回传；删掉＝再出同类报障只能继续猜）', file: 'js/entry-rules.js', needle: "el.querySelector('#nrz-diag-btn')" },
+  { name: '#1582 强提醒标记进 migrateLegacy 排除清单（update-remind-force 全局根键不被迁走/删根键，否则每次打开都重复弹）', file: 'js/contacts.js', needle: "'update-remind-force'," },
   { name: '#1550 入站问卷接入开屏收尾（clock.js finishEnter 里未放行则先跳问卷，锚在逻辑不在名字）', file: 'js/clock.js', needle: 'window.mochiEntryQuizGate && !window.mochiEntryQuizPassed()' },
   { name: '#1550 入站问卷页与开屏同层（显示期间收起 .splash-box/.splash-footcard，防问卷被开屏内容盖住或另起遮罩改图层）', file: 'css/entry-quiz.css', needle: '.splash.eqz-active .splash-footcard { display: none; }' },
   { name: '#1550 入站问卷放行根键进 migrateLegacy 排除清单（entry-quiz-pass 全局根键不被迁进 default 并删根键，否则每次刷新都要重答）', file: 'js/contacts.js', needle: "'entry-quiz-pass'," },
@@ -999,7 +1018,7 @@ const FIX_SENTINELS = [
   { name: '#1571 问卷选中状态由 picks 管（单选覆盖 picks[i] = [j]；#1576 重锚＝判分/进度/重答不再读 :checked，删掉状态机＝答题失效）', file: 'js/entry-quiz.js', needle: 'picks[i] = [j];' },
   { name: '#1572 问卷放行判定改版本比较（记录版本 ≥ 本页版本即放行；删掉＝SW 旧缓存页版本乒乓，答对过还反复弹问卷重答）', file: 'js/entry-quiz.js', needle: 'quizVerCmp(o.v, QUIZ_VER) >= 0' },
   { name: '#1573 更新提醒弹窗接口（pwa.js 检出旧缓存包时调起；删掉＝弹窗永远不出现，旧包用户不知道要刷新）', file: 'js/update-remind.js', needle: 'window.mochiUpdateRemindShow = function' },
-  { name: '#1573 更新提醒弹窗文案（作者给定 2026.10.16 版；删掉＝弹窗没有说明内容）', file: 'js/update-remind.js', needle: '强制刷新更新至2026.10.16' },
+  { name: '#1573 更新提醒弹窗文案（#1579 起随部署升版 2026.10.22；删掉＝弹窗没有说明内容）', file: 'js/update-remind.js', needle: '强制刷新更新至2026.10.22' },
   { name: '#1573 pwa.js 检出线上比本页新时调起更新提醒弹窗（删掉＝旧缓存页用户收不到刷新提醒；defer 就绪短重试为逻辑锚）', file: 'js/pwa.js', needle: 'const urShow = window.mochiUpdateRemindShow;' },
   { name: '#1577a 弹窗刷新态自管（点刷新即时反馈＋自盯 PRECACHE_DONE 补刀 reload＋185s 超时卡内告知；删＝点刷新零反馈、下载失败时弹窗无解释地永远挂着）', file: 'js/update-remind.js', needle: "e.data.type === 'PRECACHE_DONE'" },
   { name: '#1577b 弹窗刷新提示文案（约 5.6MB／弱网一两分钟／刷完可能还是旧版要再刷；删＝用户不知道刷新要等多久、卡旧版以为坏了）', file: 'js/update-remind.js', needle: '刷新后进来还是旧版' },
