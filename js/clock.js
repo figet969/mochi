@@ -254,6 +254,25 @@ if (dirty) run(); // 强刷回写
 (function () {
 const splash = document.getElementById('splash');
 if (!splash) return;
+/* FIX 2026-10-22 #1584：把开屏高度钉到【实测可视高】（base.css 的 .splash 消费 --mochi-vv-h）。
+为什么：#1584 报障「开屏完全看不见底部的【我已阅读并知晓】」——.splash 是 position:fixed;inset:0，
+在内嵌浏览器 / Android 15+ 边缘到边形态上按布局视口定高（底部一条被系统手势条/浏览器工具条盖住），
+按钮正好落在被盖住的那一条里，而开屏整页没有滚动路径 ⇒ 永远点不到。
+只写一个根变量、不改任何门控与滚动判定（那些仍读 .splash-box）；不认 dvh 的老内核由它顶替。
+键盘期 visualViewport 会缩，但开屏/须知页/24 题问卷都没有输入框，不存在被键盘压矮的场景。 */
+(function syncSplashVvH() {
+function apply() {
+try {
+const vv = window.visualViewport;
+const h = Math.round((vv && vv.height) || window.innerHeight || 0);
+if (h > 200) document.documentElement.style.setProperty('--mochi-vv-h', h + 'px');
+} catch (e) {}
+}
+apply();
+window.addEventListener('resize', apply);
+window.addEventListener('orientationchange', apply);
+try { if (window.visualViewport) window.visualViewport.addEventListener('resize', apply); } catch (e) {}
+})();
 const hide = () => {
 if (splash.classList.contains('hide')) return;
 splash.classList.add('hide');

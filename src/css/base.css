@@ -85,6 +85,15 @@ html { margin:0; padding:0; }
 /* ===== 开屏加载动画 ===== */
 .splash {
   position:fixed; inset:0; z-index:999;
+  /* FIX 2026-10-22 #1584（作者报障：「开屏完全看不见底部的【我已阅读并知晓】，无法点击，无法正常使用」）：
+     inset:0 让开屏按【布局视口】定高，而 Android 15+ 边缘到边 / 内嵌浏览器（#236/#530 同族）会把页面画进
+     系统手势条与浏览器工具条底下——底部那一条被盖住的正是 .splash-footcard（年龄勾选＋我已阅读并知晓），
+     开屏整页又没有任何滚动路径 ⇒ 按钮永远点不到。这里与 .phone 同一条思路：高度取【实测可视高】，
+     --mochi-vv-h 由 clock.js 按 visualViewport.height 写入；dvh 给现代内核兜底；
+     两者都没有的老内核 height 整条失效、退回 inset:0 原样（不变差）。 */
+  height:var(--mochi-vv-h, 100dvh);
+  /* 最后一道兜底：内容仍高于可视高（超大系统字体/极矮屏）时整页可滚到底，按钮与「仍要进入」仍可达。 */
+  overflow-y:auto; overflow-x:hidden;
   background:radial-gradient(130% 42% at 50% 0%, var(--sp-glow) 0%, transparent 72%), var(--card-bg);
   /* v3.8.y：整页一体滚动——列布局：.splash-box 占满剩余并自身滚动（顶部+公告一起滚），底部操作区常驻 */
   display:flex; flex-direction:column; align-items:center;
@@ -574,6 +583,9 @@ input.mochi-pick-surface::-webkit-file-upload-button { display:none; }
   display:flex; flex-direction:column;
   box-sizing:border-box;
   padding:22px 18px calc(22px + var(--mochi-safe-bottom,env(safe-area-inset-bottom,0px)));
+  /* #1584：顶部同样让开系统状态栏（与 .phone / 两套问卷同一条链）——边缘到边形态下这条覆盖层
+     的标题原本也压在系统状态栏底下；常规形态 --mochi-safe-top 未设 ⇒ 回落 env()＝22px 原样。 */
+  padding-top:calc(22px + var(--mochi-safe-top,env(safe-area-inset-top,0px)));
 }
 .splash-mandatory[hidden] { display:none; }
 .splash-mandatory-scroll {

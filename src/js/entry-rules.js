@@ -34,6 +34,31 @@
     try { if (window.xyStore) window.xyStore(G).set(k, v); else localStorage.setItem(G + ':' + k, v); }
     catch (e) { try { localStorage.setItem(G + ':' + k, v); } catch (e2) {} }
   }
+
+  /* #1585（2026-10-23 作者报「iQOO 11 / Edge，8 道题答了 10 遍，每次重开都要重答」）：
+     这不是机型玄学，是**本页自己的时序 bug**——24 题问卷一直正常就是铁证：
+       · 24 题问卷的闸在「点进入」时判（那时 idbRestore 已完成，同步口读得到记录）；
+       · 本页的闸在**模块加载瞬间**判（idbRestore 还没回填完）。
+     于是：只要这台机器的 localStorage 写不进/被清（本仓 idb.js #1309a 已实锤 Edge/小米 14U
+     出现过「LS 整域写不进、站内 0 键，全站只剩 IDB 一份拷贝」），记录就只存在于 IndexedDB，
+     而启动回填是异步的、比本模块晚 ⇒ 开门那一刻同步读空 ⇒ 判成「没答过」⇒ 天天重答。
+     修法（三路冗余 + 异步确认）：
+       ① cookie：同步可读、独立配额、不参与 LS 配额争抢，作为第一判据（新记录同时写它）；
+       ② 内存/LS：原有通道（回填完成后同步命中）；
+       ③ IndexedDB：开层前先异步问一次库，并监听 mochi-restore-done 再核一次——
+          「同步读空 ≠ 没记录」，只有三路都否定才盖层；证据迟到了（已盖层）则当场自动收层。
+     cookie 只存版本号，不含任何用户数据；伪造它等于伪造 localStorage，安全级别一致。 */
+  const CK = 'mochi_rnp';
+  function ckRaw() {
+    try {
+      const m = document.cookie.match(/(?:^|;\s*)mochi_rnp=([^;]*)/);
+      return m ? decodeURIComponent(m[1]) : null;
+    } catch (e) { return null; }
+  }
+  function ckSet(ver) {
+    // path=/ 覆盖站点子路径；两年有效期（本机记住一次即可，不随会话消失）
+    try { document.cookie = CK + '=' + encodeURIComponent(ver) + '; path=/; max-age=63072000; SameSite=Lax'; } catch (e) {}
+  }
   // 版本比较（同 entry-quiz.js quizVerCmp：'YYYY-MM-DD' + 可选小尾巴，日期段先比、尾巴字典序）
   function verCmp(a, b) {
     const sa = String(a == null ? '' : a), sb = String(b == null ? '' : b);
@@ -45,18 +70,45 @@
     if (ta === tb) return 0;
     return ta > tb ? 1 : -1;
   }
+  // 一条记录（JSON 串 {t,v}，或已 parse 的对象）是否满足本页版本
+  function recOk(raw) {
+    if (raw === null || raw === undefined) return false;
+    if (typeof raw !== 'string') {
+      try { return !!(raw && typeof raw.v === 'string' && raw.v && verCmp(raw.v, RULES_VER) >= 0); } catch (e0) { return false; }
+    }
+    if (raw.charAt(0) !== '{') return false;
+    try {
+      const o = JSON.parse(raw);
+      return !!(o && typeof o.v === 'string' && o.v && verCmp(o.v, RULES_VER) >= 0);
+    } catch (e) { return false; }
+  }
   // 本机已通过本版须知？（记录版本 ≥ 本页版本即放行）
   function passed() {
     if (IS_AUTOMATION) return true;
+    // ① cookie 优先（同步、独立配额；LS 写不进的机器上这是唯一能同步命中的一路）
+    const ck = ckRaw();
+    if (ck && verCmp(ck, RULES_VER) >= 0) {
+      // 顺手把内存/LS 补回来（下次连 cookie 都不用看），失败无所谓
+      try { if (!recOk(gGet(K_PASS))) gSet(K_PASS, JSON.stringify({ t: Date.now(), v: ck })); } catch (e1) {}
+      return true;
+    }
+    // ② 内存 / localStorage
     try {
-      const raw = gGet(K_PASS);
-      if (!raw || String(raw).charAt(0) !== '{') return false;
-      const o = JSON.parse(raw);
-      if (!o || typeof o.v !== 'string' || !o.v) return false;
-      return verCmp(o.v, RULES_VER) >= 0;
-    } catch (e) { return false; }
+      if (recOk(gGet(K_PASS))) {
+        // 记录在、cookie 缺席（老记录/被清过）→ 补齐，让下一次开屏走同步快路
+        if (!ck || verCmp(ck, RULES_VER) < 0) ckSet(RULES_VER);
+        return true;
+      }
+    } catch (e2) {}
+    return false;
   }
-  function markPassed() { gSet(K_PASS, JSON.stringify({ t: Date.now(), v: RULES_VER })); }
+  function markPassed() {
+    const val = JSON.stringify({ t: Date.now(), v: RULES_VER });
+    ckSet(RULES_VER);                     // ① cookie
+    gSet(K_PASS, val);                    // ② 内存 + LS（xyStore 会同时写 IDB）
+    // ③ xyStore 缺席（早期调用）时自己补一发 IDB，保证三路都在
+    try { if (!window.xyStore && window.idbSet) window.idbSet(G + ':' + K_PASS, val); } catch (e) {}
+  }
 
   // ---------- 须知与题库（作者原文；全部单选，a=正确项下标） ----------
   const RULE_PARA1 = '本站是个人维护的免费站点。为了维护良好的使用体验，请遵守以下基本规则：分享链接需注明作者署名，禁止将本站与其他站点进行对比拉踩，禁止泄露问卷答案和开屏密码。';
@@ -174,6 +226,12 @@
         ' | pos=' + cs.position + ' height=' + cs.height + ' minH=' + cs.minHeight +
         ' overflowY=' + cs.overflowY + ' flex=' + cs.flex + ' display=' + cs.display;
     }
+    function varOf(name) {
+      try {
+        var q = window.getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        return q || '(未设)';
+      } catch (e) { return '?'; }
+    }
     if (diagBtn) diagBtn.addEventListener('click', function () {
       const vv = window.visualViewport;
       const sv = document.getElementById('splash-ver');
@@ -201,6 +259,9 @@
           ' | visualViewport: ' + (vv ? Math.round(vv.width) + 'x' + Math.round(vv.height) + ' offTop=' + Math.round(vv.offsetTop) + ' scale=' + vv.scale : '无'),
         'docEl: clientH=' + document.documentElement.clientHeight + ' scrollH=' + document.documentElement.scrollHeight +
           ' | body: clientH=' + document.body.clientHeight + ' scrollH=' + document.body.scrollHeight,
+        // #1584：这两条是「页面画进状态栏/工具条区」的判据（--mochi-vv-h＝开屏实际用的可视高）
+        '变量: --mochi-vv-h=' + varOf('--mochi-vv-h') + ' --mochi-safe-top=' + varOf('--mochi-safe-top') +
+          ' --mochi-safe-bottom=' + varOf('--mochi-safe-bottom'),
         boxInfo('#splash'),
         boxInfo('#entry-rules-page'),
         boxInfo('#nrz-view-quiz'),
@@ -208,10 +269,33 @@
         '第8题: ' + rectOf(q8),
         '确认按钮: ' + rectOf(cbtn),
         '置底尝试: ' + probe,
+        // #1585：这三行是「每次重开都要重答」的现场判据——记录在不在三路里、LS 到底能不能写
+        '记录: LS=' + (function () { try { return localStorage.getItem(G + ':' + K_PASS) || '空'; } catch (e7) { return '读失败'; } })() +
+          ' | cookie=' + (ckRaw() || '空'),
+        'LS可写: ' + (function () {
+          try {
+            const k = G + ':__rnp-wt';
+            localStorage.setItem(k, '1');
+            const ok = localStorage.getItem(k) === '1';
+            localStorage.removeItem(k);
+            return ok ? '可写' : '写不进';
+          } catch (e8) { return '写不进(' + (e8 && e8.name ? e8.name : 'err') + ')'; }
+        })(),
+        '存储用量: ' + (function () { return window.__rnpQuota || '读取中…'; })(),
         '—— 请把以上全部内容复制/截图发给作者 ——'
       ];
       diagPre.hidden = false;
       diagPre.textContent = lines.join('\n');
+      // 存储用量异步补上（同步 API 不存在）；读不到就保持「读取中…」
+      try {
+        if (navigator.storage && navigator.storage.estimate) {
+          navigator.storage.estimate().then(function (est) {
+            const q = '约 ' + Math.round((est.usage || 0) / 1048576) + 'MB / 上限 ' + Math.round((est.quota || 0) / 1048576) + 'MB';
+            window.__rnpQuota = q;
+            try { diagPre.textContent = diagPre.textContent.replace('读取中…', q); } catch (e11) {}
+          }, function () {});
+        }
+      } catch (e10) {}
       try {
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(diagPre.textContent);
         else {
@@ -339,15 +423,50 @@
       if (step > 0) { step--; renderStep(); }
     });
     renderStep();
+    // #1585：供 boot 的异步复核使用——只有「用户还没动过任何选项」才允许自动收层（不打断正在答题的人）
+    el.__untouched = function () { return step === 0 && picks.every(function (p) { return p === null; }); };
   }
 
   // ---------- 模块加载即判定：未通过且开屏在场 → 盖上须知层 ----------
+  let askedOpen = false;
+  function openOnce() { if (askedOpen) return; askedOpen = true; open(); }
   function boot() {
     try {
-      if (passed()) return;
-      if (!document.getElementById('splash')) return;
-      open();
-    } catch (e) { /* 任何异常都不阻塞开屏本身 */ }
+      if (passed()) return;                                   // 同步三路（cookie/内存/LS）已命中
+      if (!document.getElementById('splash')) return;          // 没有开屏（已在应用内）→ 不拦
+      /* #1585：同步读空 ≠ 没有记录。先异步问库 + 等回填事件，超时兜底照常盖层；
+         证据若迟到（层已盖上）且用户还没动过任何选项 → 当场收层，不再让人白答。 */
+      let done = false;
+      function acceptPass() {
+        if (done) return;
+        done = true;
+        try { markPassed(); } catch (e0) {}
+        let untouched = false;
+        try { untouched = !!(pageEl && pageEl.__untouched && pageEl.__untouched()); } catch (e1) {}
+        if (untouched) {
+          try { cleanup(); } catch (e2) {}
+          toast('本机已确认过入站须知，无需重复作答');
+        }
+      }
+      function ask() { if (done) return; done = true; openOnce(); }
+      // ① 直接问库（权威值；记录只存在于 IDB 的机器靠这一路）
+      try {
+        if (window.idbGet) {
+          Promise.resolve(window.idbGet(G + ':' + K_PASS)).then(function (v) {
+            if (recOk(v)) acceptPass(); else ask();
+          }, function () { ask(); });
+        }
+      } catch (e3) {}
+      // ② 回填完成事件：idbRestore 写下内存/LS 后再核一次同步口
+      try {
+        document.addEventListener('mochi-restore-done', function () {
+          if (passed()) acceptPass(); else ask();
+        }, { once: true });
+        if (window.__mochiDataReady && passed()) acceptPass();
+      } catch (e4) {}
+      // ③ 兜底：库/事件都不回话也不许把开屏钉住（首次使用仍按原节奏看到须知）
+      setTimeout(function () { if (!done) { if (passed()) acceptPass(); else ask(); } }, 1200);
+    } catch (e) { try { open(); } catch (e2) { /* 任何异常都不阻塞开屏本身 */ } }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();

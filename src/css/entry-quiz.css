@@ -90,7 +90,9 @@
 .eqz-opt.is-sel { border-color: var(--sp-ink, #111); background: var(--sp-soft, rgba(17, 17, 17, .055)); color: var(--ink, #111); }
 
 .eqz-foot {
-  padding: 10px 18px calc(16px + env(safe-area-inset-bottom, 0px));
+  /* #1584：底部同样接全站那条避让链（--mochi-safe-bottom 优先、env 回落）——边缘到边形态下
+     env 恒 0、手势条压着底栏，「上一步 / 下一题」只剩半颗可按。常规形态变量未设＝与改动前逐字一致。 */
+  padding: 10px 18px calc(16px + var(--mochi-safe-bottom, env(safe-area-inset-bottom, 0px)));
   border-top: 1px solid var(--sp-line, rgba(0, 0, 0, .08));
 }
 .eqz-note { margin-bottom: 8px; font-size: 11.5px; line-height: 1.6; color: var(--muted, #8a8a8a); white-space: normal; }
@@ -132,3 +134,14 @@
 /* 靠 hidden 切屏：必须配救援，否则个别内核/[hidden] 被 display 覆盖＝所有题一起显示 */
 .splash.rules-open > #entry-rules-page [hidden] { display: none !important; }
 .splash.rules-open > #entry-rules-page #nrz-prev[disabled] { opacity: .32; }
+
+/* ===== #1584（2026-10-22 作者报障：入站问卷「只看得到选项、看不到题目，完全无法答题」）=====
+   两套问卷（入站须知 #1583 / 24 题入站问卷 #1550）都是【直接挂在 .splash 上的整页层】，
+   不像开屏正文那样身处 .splash-box、天生继承那份 30px 顶内边距。于是在「页面画进系统状态栏区、
+   env(safe-area-inset-top) 恒报 0」的形态（Android 15+ 边缘到边 / 内嵌浏览器 / 主屏全屏，
+   与 #236/#530 同族）上，题目标题正好落在状态栏底下：截图里只剩几个选项、上一片黑，
+   而一屏内容不需要滚动＝滚也滚不出来。
+   顶部改用与 .phone 同一条避让链：--mochi-safe-top（device.js/mobile-adapt.js 实测写入）优先、
+   env() 回落。该变量在常规形态下是「未设」⇒ 本条为 0，24 题问卷与须知页在正常机上零变化；
+   只有真的被系统栏盖住的形态才会让出那一条。 */
+.splash.eqz-active > .eqz-page { padding-top:var(--mochi-safe-top, env(safe-area-inset-top, 0px)); }

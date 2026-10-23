@@ -183,10 +183,43 @@ ok('E1 刷新后须知不再出现', s.page === false && s.active === false);
 ok('E2 刷新后公告直接可见', s.boxHidden === false);
 // 模拟「须知改版」：写入更旧版本记录（LS＋IDB 双写；reset 只清 LS 会被 idbRestore 从 IDB 回填，
 // 与 entry-quiz 的 reset 同一口径）。记录版本 < 本页版本＝拦下重答（#1572 版本比较语义）。
-await evalJs(`(function(){var old=JSON.stringify({t:Date.now(),v:'2026-01-01'});try{if(window.xyStore)window.xyStore('xy-home-v2').set('rules-notice-pass',old);}catch(e){}try{localStorage.setItem('xy-home-v2:rules-notice-pass',old);}catch(e){}return true;})()`);
+// #1585：cookie 也是放行记录的一路，模拟改版必须同清，否则「cookie 仍是新版」＝本来就该放行。
+await evalJs(`(function(){var old=JSON.stringify({t:Date.now(),v:'2026-01-01'});
+  try{document.cookie='mochi_rnp=; max-age=0; path=/';}catch(e){}
+  try{if(window.xyStore)window.xyStore('xy-home-v2').set('rules-notice-pass',old);}catch(e){}
+  try{localStorage.setItem('xy-home-v2:rules-notice-pass',old);}catch(e){}
+  return true;})()`);
 await navigate(baseUrl + '/index.html');
 s = await evalJs(GATE);
 ok('E3 记录版本更旧（模拟改版）后须知重新出现', s.page === true && s.active === true, s);
+
+// ===== K：只答一次的三路冗余（#1585 iQOO11 / Edge「答了 10 遍、每次重开都要重答」）=====
+// 根因不是机型：本页的闸在模块加载瞬间判，而启动回填是异步的 → 记录只在 IndexedDB 的机器上，
+// 开门那一刻同步读空＝判成没答过。修法＝cookie（同步、独立配额）＋内存/LS＋IDB 三路 + 开层前异步问库。
+console.log('K 三路冗余（cookie / 内存·LS / IndexedDB）');
+await navigate(baseUrl + '/index.html');
+await evalJs(`window.__entryRulesTest.pass(), true`);
+const CK_GET = `(function(){var m=document.cookie.match(/(?:^|;\\s*)mochi_rnp=([^;]*)/);return m?decodeURIComponent(m[1]):null;})()`;
+const ck = await evalJs(CK_GET);
+ok('K1 通过时 cookie 同步落盘（v=2026-10-22c）', ck === '2026-10-22c', ck);
+// 模拟报障机：LS 写不进/被清 + cookie 也没了，记录只剩 IndexedDB 一份
+await evalJs(`(function(){
+  try{localStorage.removeItem('xy-home-v2:rules-notice-pass');}catch(e){}
+  try{document.cookie='mochi_rnp=; max-age=0; path=/';}catch(e){}
+  return true;})()`);
+await navigate(baseUrl + '/index.html');
+s = await evalJs(GATE);
+ok('K2 只剩 IDB 记录时不再要求重答（报障机情形）', s.page === false && s.active === false, s);
+ok('K2b 命中后顺手把 LS/cookie 补回（下次同步即命中）', (await evalJs(CK_GET)) === '2026-10-22c', await evalJs(CK_GET));
+// K3 反向：库里只剩旧版记录（LS/cookie 已清）→ 仍须重答一次（版本语义没被放宽）
+await evalJs(`(function(){var old=JSON.stringify({t:Date.now(),v:'2026-01-01'});
+  try{if(window.xyStore)window.xyStore('xy-home-v2').set('rules-notice-pass',old);}catch(e){}
+  try{localStorage.removeItem('xy-home-v2:rules-notice-pass');}catch(e){}
+  try{document.cookie='mochi_rnp=; max-age=0; path=/';}catch(e){}
+  return true;})()`);
+await navigate(baseUrl + '/index.html');
+s = await evalJs(GATE);
+ok('K3 库里只剩旧版记录时仍会重答一次（闸没被放宽）', s.page === true && s.active === true, s);
 
 // ===== G：一题一屏的可达性（#1583 作者要求覆盖全部机型）=====
 // 小视口下不再依赖滚动：断言任何时刻只有一屏内容、连点「下一步」即可走到第 8 题与提交按钮，
@@ -242,6 +275,53 @@ ok('I1 自检按钮在场且点击后展开面板', !!(diag && diag.btn === true
 ok('I2 面板含真实几何数据（#splash/scrollH/第8题/置底尝试）',
   !!(diag && /#splash:/.test(diag.text) && /scrollH=/.test(diag.text) && /第8题:/.test(diag.text) && /置底尝试:/.test(diag.text)));
 
+// ===== J：#1584 可视高/安全区（作者两台机：①开屏看不见「我已阅读并知晓」 ②须知页只看得到选项、看不到题目）=====
+// J1~J3 针对「页面画进系统状态栏区、env() 恒报 0」的形态（Android 15+ 边缘到边 / 内嵌浏览器）：
+//   须知页顶部必须让开状态栏（题目标题不得被盖住）；开屏高度必须取实测可视高（底栏不得落到可视区外）。
+// J4~J5 针对「整个底部操作区在可视区外」：整页高度＝可视高，且万一内容仍超高，.splash 自身可滚到底。
+console.log('J 可视高 / 安全区（#1584）');
+{
+  // 当前状态＝I 组结束时：须知层开着（390×660）。先量顶部避让：模拟边缘到边把 --mochi-safe-top 写成 31px。
+  const j1 = JSON.parse(await evalJs(`(function(){
+    var d=document.documentElement;
+    var page=document.getElementById('entry-rules-page');
+    d.style.removeProperty('--mochi-safe-top');
+    var before=parseFloat(getComputedStyle(page).paddingTop)||0;
+    d.style.setProperty('--mochi-safe-top','31px');
+    var pad=parseFloat(getComputedStyle(page).paddingTop)||0;
+    var sc=document.getElementById('nrz-scroll');
+    var qTop=sc?Math.round(sc.getBoundingClientRect().top):null;
+    return JSON.stringify({before:before, pad:pad, qTop:qTop});
+  })()`));
+  ok('J1 常态下问卷页顶内边距为 0（--mochi-safe-top 未设＝正常机零变化）', j1 && j1.before === 0, j1);
+  ok('J2 边缘到边（safe-top=31px）下题目标题让开状态栏（滚动区 top ≥ 31）', !!(j1 && j1.pad >= 31 && j1.qTop >= 31), j1);
+
+  // 放行须知 → 刷新 → 开屏重新露出，在 390×400 的矮视口量开屏底栏可达性
+  await evalJs('window.__entryRulesTest.pass(); true');
+  await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 400, deviceScaleFactor: 2, mobile: true });
+  await navigate(baseUrl + '/index.html');
+  await sleep(1200);
+  const j3 = JSON.parse(await evalJs(`(function(){
+    var sp=document.getElementById('splash');
+    var card=document.querySelector('.splash-footcard');
+    var ent=document.getElementById('splash-enter');
+    var vv=window.visualViewport?Math.round(window.visualViewport.height):window.innerHeight;
+    var spH=Math.round(sp.getBoundingClientRect().height);
+    var varH=getComputedStyle(document.documentElement).getPropertyValue('--mochi-vv-h').trim();
+    function r(n){ if(!n) return null; var b=n.getBoundingClientRect(); return {top:Math.round(b.top),bottom:Math.round(b.bottom),h:Math.round(b.height)}; }
+    var c0=r(card), e0=r(ent);
+    var canScroll=sp.scrollHeight-sp.clientHeight;
+    var reached=true;
+    if (c0 && c0.bottom>spH+1) { sp.scrollTop=sp.scrollHeight; reached=(sp.scrollTop>0); c0=r(card); e0=r(ent); }
+    return JSON.stringify({vv:vv, spH:spH, varH:varH, canScroll:canScroll,
+      card:c0, ent:e0, ok1:(c0?c0.bottom<=spH+1:false), ok2:(e0?e0.bottom<=spH+1:false), scrolled:reached});
+  })()`));
+  ok('J3 开屏高度＝实测可视高（不是布局视口）', !!(j3 && j3.varH === j3.vv + 'px' && Math.abs(j3.spH - j3.vv) <= 1), j3);
+  ok('J4 矮视口（390×400）下底部操作卡整块在可视区内（按钮必然可达）', !!(j3 && j3.ok1 === true && j3.card && j3.card.h > 0), j3 && { card: j3.card, ent: j3.ent });
+  ok('J5 内容仍超高时开屏可滚到底（.splash 自身兜底滚动）', !!(j3 && (j3.canScroll <= 0 || j3.scrolled === true)), j3 && { canScroll: j3.canScroll, scrolled: j3.scrolled });
+  await cdp('Emulation.clearDeviceMetricsOverride');
+}
+
 // #1582 强制刷新弹窗的「本版一次性强提醒」通道：用旧构建号页面隔离验证——
 // 该页同目录 version.json 与页面同号（版本比对通道判不出新版），弹窗只可能来自强提醒通道。
 console.log('H 强制刷新弹窗·本版一次性强提醒（旧构建号页面）');
@@ -259,13 +339,13 @@ console.log('H 强制刷新弹窗·本版一次性强提醒（旧构建号页面
     var d=w?w.querySelector('.ur-d'):null;
     return JSON.stringify({ ts: sv?sv.getAttribute('data-build-ts'):null,
       shown: !!w, btn: !!(w&&w.querySelector('.ur-go')),
-      titled: !!(w&&/2026\\.10\\.22/.test((w.querySelector('.ur-t')||{}).textContent||'')),
+      titled: !!(w&&/2026\.10\.23/.test((w.querySelector('.ur-t')||{}).textContent||'')),
       bodyHit: !!(d&&/第 8 题/.test(d.textContent||'')) });
   })()`));
   ok('H1 旧构建号页面弹出强制刷新弹窗（不依赖 version.json 比对）', h1 && h1.ts === String(OLD_TS) && h1.shown === true, h1);
-  ok('H2 弹窗标题/按钮指向 2026.10.22 且正文提到第 8 题修复', h1 && h1.titled === true && h1.bodyHit === true && h1.btn === true, h1);
+  ok('H2 弹窗标题/按钮指向 2026.10.23 且正文提到两个问题的修复', h1 && h1.titled === true && h1.bodyHit === true && h1.btn === true, h1);
   const h2 = await evalJs("(function(){try{return localStorage.getItem('xy-home-v2:update-remind-force')}catch(e){return null}})()");
-  ok('H3 强提醒标记落盘（本版只提醒一次）', h2 === '2026-10-22e', h2);
+  ok('H3 强提醒标记落盘（本版只提醒一次）', h2 === '2026-10-23a', h2);
   // H4 同会话重复调用不叠加第二层（弹窗自带 done 去重；这里不重载页面——探针对同一 URL 连续导航不稳）
   const h3 = JSON.parse(await evalJs(`(function(){
     window.mochiUpdateRemindShow && window.mochiUpdateRemindShow();
