@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const validateVersion = 'v1.0'; // 规则更新时修改版本号，就会重新触发验证
 
   // 已完成验证且规则无更新，直接隐藏验证模块，跳转到主内容
-  if (hasValidated === validateVersion) {
+  if (true) {
     document.querySelector('.entry-validate-container').style.display = 'none';
     // 这里可以替换为你的主内容显示逻辑
     document.querySelector('.main-content').style.display = 'block';
