@@ -1,1 +1,49 @@
+// entry-validate.js 完整代码
+document.addEventListener('DOMContentLoaded', function() {
+  // 1. 检查用户是否已经完成过验证
+  const hasValidated = localStorage.getItem('site_entry_validated');
+  const validateVersion = 'v1.0'; // 规则更新时修改版本号，就会重新触发验证
 
+  // 已完成验证且规则无更新，直接隐藏验证模块，跳转到主内容
+  if (hasValidated === validateVersion) {
+    document.querySelector('.entry-validate-container').style.display = 'none';
+    // 这里可以替换为你的主内容显示逻辑
+    document.querySelector('.main-content').style.display = 'block';
+    return;
+  }
+
+  // 2. 未验证用户：渲染验证页面
+  const validateHTML = `
+    <div class="entry-validate-container" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:99999;padding:20px;overflow:auto;">
+      <h2 style="text-align:center;margin:20px 0;">本站入站须知</h2>
+      <div style="max-width:800px;margin:0 auto;padding:20px;border:1px dashed #ccc;border-radius:8px;margin-bottom:20px;">
+        <p style="text-align:center;color:#666;margin:10px 0;">显示不全 / 看不到第8题?点这里自检</p>
+      </div>
+      <div style="max-width:800px;margin:0 auto;line-height:1.8;">
+        <p>本站是个人维护的免费站点。为了维护良好的使用体验,请遵守以下基本规则:分享链接需注明作者署名,禁止将本站与其他站点进行对比拉踩,禁止泄露问卷答案和开屏密码。</p>
+        <p>可能很多人觉得免费就不该有规矩。但这是个人花心血做的同好自留地。任何圈子,人一多、风气一杂,原本那种安静稳定的体验就毁了。规则和门槛的存在,只是为了保护正常使用的人能有个好环境。如果觉得规矩多、嫌麻烦,说明这里可能不适合你,大家双向选择就好。继续即视为接受。</p>
+        <p>完成下面「入站氛围确认」的全部题目并接受规则,即可继续进入开屏公告。本确认只需完成一次:通过后本机会记住,以后打开不再出现(仅当须知内容更新后才会重新出现一次)。</p>
+      </div>
+      <div style="max-width:800px;margin:30px auto;text-align:center;">
+        <p style="font-size:18px;margin-bottom:10px;">已答 0/8</p>
+        <p style="color:#666;margin-bottom:20px;">作答过程不显示对错;提交后如未全部符合要求,会告知哪些题需要重新确认(页面不会泄露答案)。</p>
+        <p style="margin-bottom:30px;">第 1/10 步·规则说明</p>
+        <button style="padding:12px 30px;border:1px solid #333;border-radius:8px;background:#fff;margin-right:20px;">上一步</button>
+        <button id="startValidateBtn" style="padding:12px 30px;border:none;border-radius:8px;background:#000;color:#fff;cursor:pointer;">开始确认 →</button>
+      </div>
+    </div>
+  `;
+
+  // 把验证页面插入到页面最顶部
+  document.body.insertAdjacentHTML('afterbegin', validateHTML);
+
+  // 3. 绑定验证通过事件
+  document.getElementById('startValidateBtn').addEventListener('click', function() {
+    // 这里可以替换为你的选择题验证逻辑，全部答对后执行以下代码
+    // 验证通过，存储状态
+    localStorage.setItem('site_entry_validated', validateVersion);
+    // 隐藏验证页面，显示主内容
+    document.querySelector('.entry-validate-container').style.display = 'none';
+    document.querySelector('.main-content').style.display = 'block';
+  });
+});
