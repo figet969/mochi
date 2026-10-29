@@ -6621,6 +6621,12 @@ const FIX_SENTINELS = [
   { name: '#1538b 二线兜底同口径禁猜（删＝X5/旧夸克族二线仍盲猜）', file: 'js/mobile-adapt.js', needle: 'var _realH2 = 0;' },
   { name: '#1539a 收口先清空再量（删＝#1537 把清空整行替换成量底边 ⇒ Chrome 收键盘后 489px 内联高停留 1s＝不能秒收＋输入栏一行消失；恢复清空为第一步、清完量渲染底边超视口才钉）', file: 'js/mobile-adapt.js', needle: "_aPhone.style.height = ''; // #1539：清空必须先做" },
   { name: '#1540a 开新会话即拆收口封锁窗（删＝关了马上再开时，钉高被上一轮 1.2s 墙拦住＝输入栏被键盘盖住一秒才弹上来＝用户实报「打开键盘时输入栏消失一秒」）', file: 'js/mobile-adapt.js', needle: '_aHoldSuppressUntil = 0; _aPhone.style.alignSelf' },
+  // ==== 2026-10-27 #1586 作者再报「总有人手机每次进入都要重答」（#1585 之后仍有）====
+  { name: '#1586 须知层「迟到证据收层」不再被盖层那枚门封死（拆成 settled/opened 两枚门；改回共用一个 done＝库读数慢过 1.2s 兜底的机器，答过也照重答）', file: 'js/entry-rules.js', needle: 'if (settled || opened) return; opened = true; openOnce();' },
+  { name: '#1586 自检面板补 24 题问卷的放行记录读数（两条闸各自一门，报障时要能一眼分清是哪道闸重答）', file: 'js/entry-rules.js', needle: "'24题记录: '" },
+  { name: '#1586 24 题放行记录·cookie 通道（LS 写不进/被清的机器上唯一能同步命中的一路；删＝那些机型天天重答 24 题）', file: 'js/entry-quiz.js', needle: "const CK = 'mochi_q24';" },
+  { name: '#1586 24 题开卷前先异步问库（同步读空≠没答过：回填没进内存时记录只在 IDB；删＝又回到同步判空就开卷）', file: 'js/entry-quiz.js', needle: 'if (recOk(v)) passGate(); else showQuizNow();' },
+  { name: '#1586 24 题证据迟到时自动收卷（卷已开但库里证明答过、用户没动过选项＝当场摘卷继续进入；删＝只补记录不摘卷）', file: 'js/entry-quiz.js', needle: 'el.__untouched = function () {' },
 ];
 try {
   const built = CHECK_SENTINELS ? '' : readFileSync(join(root, 'index.html'), 'utf8');

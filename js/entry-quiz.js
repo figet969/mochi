@@ -39,17 +39,54 @@ const ta = ma[2] || '', tb = mb[2] || '';
 if (ta === tb) return 0;
 return ta > tb ? 1 : -1;
 }
-function passed() {
-if (IS_AUTOMATION) return true;
+/* #1586（2026-10-27 作者再报「总有人手机每次进入都要重答」）：
+24 题这道闸此前只有「内存/LS + IndexedDB」两路，而闸是在「点进入」时**同步**判的——
+只要这台机器的 localStorage 写不进/被清（idb.js #1309a 实锤的 Edge/小米 14U 那一型），
+记录就只剩 IDB 一份，而启动回填还没把内存填上（大库手机/走「仍要进入」逃生口时尤其明显）
+⇒ 同步读空＝判成没答过 ⇒ 天天重答。修法同 #1585 须知层：补 cookie 这一路（同步可读、
+独立配额），并把「开卷」前挪到异步确认之后——同步读空不再等于没答过。 */
+const CK = 'mochi_q24';
+function ckRaw() {
 try {
-const raw = gGet(K_PASS);
-if (!raw || String(raw).charAt(0) !== '{') return false;
+const m = document.cookie.match(/(?:^|;\s*)mochi_q24=([^;]*)/);
+return m ? decodeURIComponent(m[1]) : null;
+} catch (e) { return null; }
+}
+function ckSet(ver) {
+try { document.cookie = CK + '=' + encodeURIComponent(ver) + '; path=/; max-age=63072000; SameSite=Lax'; } catch (e) {}
+}
+function recOk(raw) {
+if (raw === null || raw === undefined) return false;
+if (typeof raw !== 'string') {
+try { return !!(raw && typeof raw.v === 'string' && raw.v && quizVerCmp(raw.v, QUIZ_VER) >= 0); } catch (e0) { return false; }
+}
+if (raw.charAt(0) !== '{') return false;
+try {
 const o = JSON.parse(raw);
-if (!o || typeof o.v !== 'string' || !o.v) return false;
-return quizVerCmp(o.v, QUIZ_VER) >= 0;
+return !!(o && typeof o.v === 'string' && o.v && quizVerCmp(o.v, QUIZ_VER) >= 0);
 } catch (e) { return false; }
 }
-function markPassed() { gSet(K_PASS, JSON.stringify({ t: Date.now(), v: QUIZ_VER })); }
+function passed() {
+if (IS_AUTOMATION) return true;
+const ck = ckRaw();
+if (ck && quizVerCmp(ck, QUIZ_VER) >= 0) {
+try { if (!recOk(gGet(K_PASS))) gSet(K_PASS, JSON.stringify({ t: Date.now(), v: ck })); } catch (e1) {}
+return true;
+}
+try {
+if (recOk(gGet(K_PASS))) {
+if (!ck || quizVerCmp(ck, QUIZ_VER) < 0) ckSet(QUIZ_VER);
+return true;
+}
+} catch (e) {}
+return false;
+}
+function markPassed() {
+const val = JSON.stringify({ t: Date.now(), v: QUIZ_VER });
+ckSet(QUIZ_VER);          // ① cookie
+gSet(K_PASS, val);        // ② 内存 + LS（xyStore 会同时写 IDB）
+try { if (!window.xyStore && window.idbSet) window.idbSet(G + ':' + K_PASS, val); } catch (e) {}
+}
 const QUESTIONS = [
 {
 k: 'multi', q: '关于 mochi 字卡本站内容与功能使用，以下正确的是？', a: [0, 1, 2, 3, 4, 5],
@@ -227,9 +264,11 @@ let n = 0;
 picks.forEach(function (p) { if (p.length) n++; });
 if (progressEl) progressEl.textContent = '已答 ' + n + ' / ' + total;
 }
+let touched = false;
 el.addEventListener('click', function (e) {
 const o = e.target && e.target.closest ? e.target.closest('.eqz-opt') : null;
 if (!o || !el.contains(o)) return;
+touched = true;
 const i = parseInt(o.getAttribute('data-i'), 10);
 const j = parseInt(o.getAttribute('data-j'), 10);
 const it = QUESTIONS[i];
@@ -314,12 +353,48 @@ if (btn) btn.addEventListener('click', submit);
 const back = el.querySelector('#eqz-back');
 if (back) back.addEventListener('click', backToSplash);
 refreshProgress();
+el.__untouched = function () {
+return !touched && picks.every(function (p) { return !p.length; });
+};
 }
 window.mochiEntryQuizPassed = passed;
 window.mochiEntryQuizGate = function (next) {
 if (passed()) { if (next) next(); return; }
-open(next);
+/* #1586：同步读空 ≠ 没答过（同 #1585 须知层口径）——记录只在 IndexedDB 的机器上，
+回填还没进内存时同步口就是空的。开卷前先异步问一次库、并等一次回填完成事件；
+三路全否定才真开卷。证据迟到（卷已开）且用户没动过选项 → 当场收卷继续进入。 */
+let settled = false;   // 已确认「本机答过」
+let opened = false;    // 已开卷
+function passGate() {
+if (settled) return;
+settled = true;
+try { markPassed(); } catch (e0) {}      // 三路自愈补齐
+if (!opened) { if (next) next(); return; }
+let untouched = false;
+try { untouched = !!(pageEl && pageEl.__untouched && pageEl.__untouched()); } catch (e1) {}
+if (!untouched) return;   // 用户已开始作答：不打断（记录已补齐，下次开屏不会再问）
+const cb = pendingNext; pendingNext = null;
+try { cleanup(); } catch (e2) {}
+toast('本机已通过入站问卷，无需重复作答');
+if (cb) cb();
+}
+function showQuizNow() { if (settled || opened) return; opened = true; open(next); }
+try {
+if (window.idbGet) {
+Promise.resolve(window.idbGet(G + ':' + K_PASS)).then(function (v) {
+if (recOk(v)) passGate(); else showQuizNow();
+}, function () { showQuizNow(); });
+}
+} catch (e3) {}
+try {
+document.addEventListener('mochi-restore-done', function () {
+if (passed()) passGate(); else showQuizNow();
+}, { once: true });
+if (window.__mochiDataReady && passed()) passGate();
+} catch (e4) {}
+setTimeout(function () { if (!settled && !opened) { if (passed()) passGate(); else showQuizNow(); } }, 1200);
 };
+window.__mochiQuizCk = ckRaw;
 window.__entryQuizReady = true;
 window.__entryQuizTest = {
 ver: QUIZ_VER,

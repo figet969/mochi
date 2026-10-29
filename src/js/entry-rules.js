@@ -272,6 +272,15 @@
         // #1585：这三行是「每次重开都要重答」的现场判据——记录在不在三路里、LS 到底能不能写
         '记录: LS=' + (function () { try { return localStorage.getItem(G + ':' + K_PASS) || '空'; } catch (e7) { return '读失败'; } })() +
           ' | cookie=' + (ckRaw() || '空'),
+        // #1586：24 题入站问卷的放行记录独立一门（另一套 cookie/LS），同类报障要能一眼分清是哪道闸
+        '24题记录: ' + (function () {
+          try {
+            var q = (window.mochiEntryQuizPassed && window.mochiEntryQuizPassed()) ? '已通过' : '未通过(或闸未加载)';
+            var raw = localStorage.getItem(G + ':entry-quiz-pass') || '空';
+            var qc = (window.__mochiQuizCk ? window.__mochiQuizCk() : null) || '空';
+            return q + ' | LS=' + raw + ' | cookie=' + qc;
+          } catch (e12) { return '读失败'; }
+        })(),
         'LS可写: ' + (function () {
           try {
             const k = G + ':__rnp-wt';
@@ -435,20 +444,26 @@
       if (passed()) return;                                   // 同步三路（cookie/内存/LS）已命中
       if (!document.getElementById('splash')) return;          // 没有开屏（已在应用内）→ 不拦
       /* #1585：同步读空 ≠ 没有记录。先异步问库 + 等回填事件，超时兜底照常盖层；
-         证据若迟到（层已盖上）且用户还没动过任何选项 → 当场收层，不再让人白答。 */
-      let done = false;
+         证据若迟到（层已盖上）且用户还没动过任何选项 → 当场收层，不再让人白答。
+         #1586（2026-10-27 作者再报「总有人手机每次进入都要重答」）：上面那句「证据迟到＝收层」
+         原本**根本不会发生**——收层与盖层共用同一个 done 门：ask() 先把它置真，之后 acceptPass()
+         第一行就 return 了。于是只要库的读数慢过 1.2s（大库手机正是这一型），层照盖、证据到了也
+         收不回去 ⇒ 答过的机器天天重答。现拆成两枚门：settled＝已确认放行（只做一次，允许在盖层
+         之后才到）、opened＝已盖层（只做一次）；两枚互不封口，迟到的证据才真能收层。 */
+      let settled = false;   // 已确认「本机答过」
+      let opened = false;    // 已盖层
       function acceptPass() {
-        if (done) return;
-        done = true;
-        try { markPassed(); } catch (e0) {}
+        if (settled) return;
+        settled = true;
+        try { markPassed(); } catch (e0) {}   // 三路自愈补齐（下次开屏走同步快路）
+        if (!opened) return;                  // 层没开＝本来就不用收
         let untouched = false;
         try { untouched = !!(pageEl && pageEl.__untouched && pageEl.__untouched()); } catch (e1) {}
-        if (untouched) {
-          try { cleanup(); } catch (e2) {}
-          toast('本机已确认过入站须知，无需重复作答');
-        }
+        if (!untouched) return;               // 用户已开始作答：不打断（记录已补齐，下次不会再问）
+        try { cleanup(); } catch (e2) {}
+        toast('本机已确认过入站须知，无需重复作答');
       }
-      function ask() { if (done) return; done = true; openOnce(); }
+      function ask() { if (settled || opened) return; opened = true; openOnce(); }
       // ① 直接问库（权威值；记录只存在于 IDB 的机器靠这一路）
       try {
         if (window.idbGet) {
@@ -465,7 +480,7 @@
         if (window.__mochiDataReady && passed()) acceptPass();
       } catch (e4) {}
       // ③ 兜底：库/事件都不回话也不许把开屏钉住（首次使用仍按原节奏看到须知）
-      setTimeout(function () { if (!done) { if (passed()) acceptPass(); else ask(); } }, 1200);
+      setTimeout(function () { if (!settled && !opened) { if (passed()) acceptPass(); else ask(); } }, 1200);
     } catch (e) { try { open(); } catch (e2) { /* 任何异常都不阻塞开屏本身 */ } }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

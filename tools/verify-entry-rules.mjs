@@ -6,6 +6,9 @@
 //   D 全对提交：须知层移除、开屏公告恢复可见、根键 xy-home-v2:rules-notice-pass 落盘
 //   E 只答一次：刷新后不再出现；reset（模拟改版）后重新出现
 //   F 24 题入站问卷不受影响：mochiEntryQuizGate 仍在、mochiEntryQuizPassed()===false、entry-quiz-pass 键未被写
+//   K 放行记录三路冗余（cookie / 内存·LS / IndexedDB）：只剩哪一路都必须放行，旧版记录仍须重答
+//   K4 迟到证据必须收层（#1586）：注入把 idbGet/idbGetMany 拖 4s＝报障机现场，兜底先盖层、证据到了必须收层
+//   L 24 题问卷也只答一次（#1586）：cookie 落盘 / 只剩 cookie / 只剩 IDB / 自愈补回 / 旧版仍重答
 // 注：无头环境需伪装 UA（去 Headless）＋ webdriver=false，否则入口闸的自动化放行会跳过整层（同 #1576 探针坑位）。
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -352,6 +355,137 @@ console.log('H 强制刷新弹窗·本版一次性强提醒（旧构建号页面
     return JSON.stringify({ n: document.querySelectorAll('#update-remind-wrap').length });
   })()`));
   ok('H4 重复调用不叠加第二层弹窗（同会话去重）', h3 && h3.n === 1, h3);
+}
+
+// #1586：证据迟到必须真的收层（大库手机把库读数拖慢到 1.2s 兜底之后）
+//   报障形态：记录只在 IDB、同步口读空 → 1.2s 兜底先盖层 → 库的读数 1.2s 后才到。
+//   旧实现把「收层」与「盖层」共用同一个 done 门（ask() 先置真），acceptPass() 第一行就 return
+//   ＝迟到证据永远收不了层，答过的机器天天重答。本组用注入脚本把 idbGet/idbGetMany 一起拖 4s：
+//   启动回填走的正是 idbGetMany → 内存口在 1.2s 时确实还是空的（就是报障机的现场）。
+console.log('K4 迟到证据必须收层（#1586）');
+{
+  // 记录只留 IDB（LS + cookie 清掉）
+  await navigate(baseUrl + '/index.html');
+  await evalJs('window.__entryRulesTest.pass(), true');
+  await evalJs(`(function(){
+    try{localStorage.removeItem('xy-home-v2:rules-notice-pass');}catch(e){}
+    try{document.cookie='mochi_rnp=; max-age=0; path=/';}catch(e){}
+    return true;})()`);
+  // 注入：①新文档一开头就清掉 LS + cookie（模拟「LS 写不进/被清」，只留 IDB 那份记录；
+  //   必须在 document-start 清，页面卸载前的回写钩子会在上一页把 memoryCache 又写回 LS）；
+  //   ②idbGet 与 idbGetMany（回填用的就是它）都延后 4000ms 才真的去问库。
+  const inj = await cdp('Page.addScriptToEvaluateOnNewDocument', { source: `(function(){
+    try { localStorage.removeItem('xy-home-v2:rules-notice-pass'); } catch (e) {}
+    // 写日志也会把这一键回放进内存（idb.js 的冻结日志回放）＝第四路；要还原「同步口恒空」必须一并清
+    try { localStorage.removeItem('xy-home-v2:__wr-journal'); } catch (e) {}
+    try { document.cookie = 'mochi_rnp=; max-age=0; path=/'; } catch (e) {}
+    function slow(name) {
+      Object.defineProperty(window, name, {
+        configurable: true,
+        set: function (fn) {
+          var wrapped = function () {
+            var args = arguments, self = this;
+            return new Promise(function (res) {
+              setTimeout(function () {
+                try { Promise.resolve(fn.apply(self, args)).then(res, function () { res(null); }); }
+                catch (e) { res(null); }
+              }, 4000);
+            });
+          };
+          Object.defineProperty(window, name, { configurable: true, writable: true, value: wrapped });
+        },
+        get: function () { return undefined; }
+      });
+    }
+    slow('idbGet'); slow('idbGetMany');
+  })()` });
+  await cdp('Page.navigate', { url: baseUrl + '/index.html' });
+  // 轮询观测（不靠单点时刻：无头里整包内联 JS 的解析耗时波动大）
+  const wrapOk = await (async () => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < 4000) {
+      const r = await evalJs(`/4000/.test(String(window.idbGet)) && /4000/.test(String(window.idbGetMany))`);
+      if (r) return true;
+      await sleep(120);
+    }
+    return false;
+  })();
+  let seenOpen = false;
+  {
+    const t0 = Date.now();
+    while (Date.now() - t0 < 6000) {
+      if (await evalJs(`!!document.getElementById('entry-rules-page')`)) { seenOpen = true; break; }
+      await sleep(120);
+    }
+  }
+  let closedLater = false;
+  if (seenOpen) {
+    const t0 = Date.now();
+    while (Date.now() - t0 < 9000) {
+      const st = await evalJs(GATE);
+      if (st && st.page === false && st.active === false) { closedLater = true; break; }
+      await sleep(200);
+    }
+  }
+  ok('K4a 注入生效（库读数确实被拖慢，现场＝同步口读空）', wrapOk === true, wrapOk);
+  ok('K4b 库读数慢过兜底时先按兜底盖层（报障现场还原成功）', seenOpen === true, seenOpen);
+  ok('K4c 迟到的库证据到达后当场收层（不再让人白答）', closedLater === true, closedLater);
+  try { await cdp('Page.removeScriptToEvaluateOnNewDocument', { identifier: inj.identifier }); } catch (e) {}
+}
+
+// #1586：24 题入站问卷的放行记录也是三路（cookie / 内存·LS / IndexedDB）
+//   iQOO11 / Edge 那一型机器 localStorage 写不进/被清，24 题此前只有 LS+IDB 两路且闸是同步判的
+//   ⇒ 回填没进内存时同样会天天重答。本组逐路隔离验证：只剩哪一路都必须放行，旧版记录仍须重答。
+console.log('L 24 题问卷只答一次（#1586 三路冗余）');
+{
+  const QUIZ_KEY = 'xy-home-v2:entry-quiz-pass';
+  const CK24_GET = `(function(){var m=document.cookie.match(/(?:^|;\\s*)mochi_q24=([^;]*)/);return m?decodeURIComponent(m[1]):null;})()`;
+  const backOut = `(function(){var b=document.getElementById('eqz-back'); if(b){b.click(); return true;} return false;})()`;
+  const clearAllChannels = `(function(){
+    try{window.xyStore && window.xyStore('xy-home-v2').remove('entry-quiz-pass');}catch(e){}
+    try{localStorage.removeItem('${QUIZ_KEY}');}catch(e){}
+    try{document.cookie='mochi_q24=; max-age=0; path=/';}catch(e){}
+    return true;})()`;
+  const callGate = `(function(){ window.__g=0; window.mochiEntryQuizGate(function(){ window.__g=1; }); return true; })()`;
+  const gateState = `(function(){ return { g: window.__g, page: !!document.getElementById('entry-quiz-page') }; })()`;
+
+  await navigate(baseUrl + '/index.html');
+  await evalJs('window.__entryQuizTest.pass(), true');
+  const qck = await evalJs(CK24_GET);
+  ok('L1 通过时 24 题 cookie 同步落盘（v=2026-10-16c）', qck === '2026-10-16c', qck);
+
+  // 只剩 cookie：LS + IDB 全清，同步口只可能命中 cookie
+  await evalJs(backOut);
+  await evalJs(clearAllChannels);
+  await sleep(600);
+  await evalJs(`(function(){ document.cookie='mochi_q24=2026-10-16c; path=/; max-age=63072000'; return true; })()`);
+  await evalJs(callGate);
+  await sleep(1500);
+  const l2 = await evalJs(gateState);
+  ok('L2 只剩 cookie 记录时直接放行（不开 24 题卷）', !!(l2 && l2.g === 1 && l2.page === false), l2);
+
+  // 只剩 IndexedDB：LS 与 cookie 全清，同步口恒空，靠开卷前的异步问库救
+  await evalJs(backOut);
+  await evalJs(clearAllChannels);
+  await sleep(600);
+  await evalJs(`window.idbSet('${QUIZ_KEY}', JSON.stringify({ t: Date.now(), v: '2026-10-16c' }))`);
+  await evalJs(callGate);
+  await sleep(1500);
+  const l3 = await evalJs(gateState);
+  ok('L3 只剩 IDB 记录时开卷前异步确认＝直接放行（报障机情形）', !!(l3 && l3.g === 1 && l3.page === false), l3);
+  const l3ck = await evalJs(CK24_GET);
+  ok('L3b 命中后顺手把 cookie 补回（下次同步即命中）', l3ck === '2026-10-16c', l3ck);
+
+  // 反向：库里只剩旧版记录 → 仍须重答一次（版本语义没被放宽）
+  await evalJs(backOut);
+  await evalJs(clearAllChannels);
+  await sleep(600);
+  await evalJs(`window.idbSet('${QUIZ_KEY}', JSON.stringify({ t: Date.now(), v: '2026-01-01' }))`);
+  await evalJs(callGate);
+  await sleep(1500);
+  const l4 = await evalJs(gateState);
+  ok('L4 库里只剩旧版记录时仍须重答（闸没被放宽）', !!(l4 && l4.g === 0 && l4.page === true), l4);
+  await evalJs(backOut);
 }
 
 console.log('\n结果：' + pass + ' 通过 / ' + fail + ' 失败');
